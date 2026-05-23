@@ -1,0 +1,5 @@
+/zeltapp
+/zeltapp-cli
+*.test
+*.out
+.DS_Store

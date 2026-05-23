@@ -1,0 +1,51 @@
+version: 2
+
+project_name: zeltapp
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: zeltapp
+    main: ./cmd/zeltapp
+    binary: zeltapp
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+
+archives:
+  - formats:
+      - tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"
+
+brews:
+  - repository:
+      owner: agentic-utils
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: "https://github.com/agentic-utils/zeltapp-cli"
+    description: "Unofficial CLI for the Zelt HR platform"
+    license: "MIT"
+    test: |
+      system "#{bin}/zeltapp", "--version"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "^ci:"
