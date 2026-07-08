@@ -415,6 +415,12 @@ func (c *client) dispatch(method, path string, bodyBytes []byte, out any, retry 
 			}
 		}
 		if out != nil && len(rb) > 0 {
+			// *[]byte callers get the raw body (e.g. PDF downloads), everyone
+			// else gets JSON decoding.
+			if b, ok := out.(*[]byte); ok {
+				*b = rb
+				return nil
+			}
 			return json.Unmarshal(rb, out)
 		}
 		return nil

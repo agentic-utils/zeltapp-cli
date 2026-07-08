@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 )
@@ -24,6 +27,71 @@ func payslipCmd() *cobra.Command {
 				fmt.Sprintf("/apiv2/users/%d/payslips", id),
 			}
 		}))
+	cmd.AddCommand(payslipDownloadCmd())
+	return cmd
+}
+
+func payslipDownloadCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "download [YYYY-MM ...]",
+		Aliases: []string{"dl"},
+		Short:   "Download payslip PDFs as <dir>/YYYY-MM.pdf (no args: all months missing from --dir)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			user, _ := cmd.Flags().GetString("user")
+			dir, _ := cmd.Flags().GetString("dir")
+			wanted := map[string]bool{}
+			for _, a := range args {
+				wanted[a] = true
+			}
+			return withClient(func(c *client) error {
+				id, err := resolveUserOrSelf(c, user)
+				if err != nil {
+					return err
+				}
+				var slips []struct {
+					EntryID     string `json:"entryId"`
+					EntryType   string `json:"entryType"`
+					PaymentDate string `json:"paymentDate"`
+				}
+				if err := c.do("GET", fmt.Sprintf("/apiv2/users/%d/payslips", id), nil, &slips); err != nil {
+					return err
+				}
+				downloaded := 0
+				for _, s := range slips {
+					if s.EntryType != "Payslip" || s.EntryID == "" || len(s.PaymentDate) < 7 {
+						continue
+					}
+					month := s.PaymentDate[:7]
+					if len(wanted) > 0 && !wanted[month] {
+						continue
+					}
+					out := filepath.Join(dir, month+".pdf")
+					if _, err := os.Stat(out); err == nil && len(wanted) == 0 {
+						continue // no-args mode only fills gaps; name a month to re-download
+					}
+					var pdf []byte
+					p := fmt.Sprintf("/apiv2/payroll/payruns/%s/%d/payslip-pdf/download", s.EntryID, id)
+					if err := c.do("GET", p, nil, &pdf); err != nil {
+						return err
+					}
+					if !bytes.HasPrefix(pdf, []byte("%PDF")) {
+						return fmt.Errorf("%s: response is not a PDF (%d bytes)", month, len(pdf))
+					}
+					if err := writeFileAtomic(out, pdf, 0o644); err != nil {
+						return err
+					}
+					fmt.Println(out)
+					downloaded++
+				}
+				if downloaded == 0 {
+					fmt.Fprintln(stderr, "nothing to download")
+				}
+				return nil
+			})
+		},
+	}
+	cmd.Flags().String("user", "me", "userId, email, or 'me'")
+	cmd.Flags().String("dir", ".", "directory to save PDFs into")
 	return cmd
 }
 
