@@ -102,6 +102,8 @@ zeltapp review progress <uuid>
 zeltapp review participation <uuid>
 zeltapp review result <uuid> [--user me|<id>]
 zeltapp review entry [--user me|<id>]
+zeltapp review detail <entry-uuid>                  # entry + the cycle's live question set
+zeltapp review answers <entry-uuid> [<question-id>] # saved answers
 zeltapp goal list [--user me|<id>]
 ```
 
