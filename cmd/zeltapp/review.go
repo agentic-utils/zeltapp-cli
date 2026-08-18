@@ -21,6 +21,8 @@ func reviewCmd() *cobra.Command {
 		reviewParticipationCmd(),
 		reviewResultCmd(),
 		reviewEntryCmd(),
+		reviewDetailCmd(),
+		reviewAnswersCmd(),
 	)
 	return cmd
 }
@@ -204,6 +206,51 @@ func reviewEntryCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&user, "user", "me", "userId, email, or 'me'")
 	return cmd
+}
+
+func reviewDetailCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "detail ENTRY_UUID",
+		Short: "Entry detail incl. the cycle's live question set",
+		Long:  "Fetches /apiv2/review-entries/{id}/detail (note the plural), the endpoint the web app uses. Questions are snapshotted per cycle, so this is the authoritative question set for an entry; the review-template endpoint can be stale.",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := validateOutput(); err != nil {
+				return err
+			}
+			return withClient(func(c *client) error {
+				var v json.RawMessage
+				if err := c.do("GET", "/apiv2/review-entries/"+args[0]+"/detail", nil, &v); err != nil {
+					return err
+				}
+				return emit(&resourceView{raw: rawToAny(v)})
+			})
+		},
+	}
+}
+
+func reviewAnswersCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "answers ENTRY_UUID [QUESTION_UUID]",
+		Short: "Saved answers for an entry (optionally one question)",
+		Args:  cobra.RangeArgs(1, 2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := validateOutput(); err != nil {
+				return err
+			}
+			return withClient(func(c *client) error {
+				path := "/apiv2/review-answer/entry/" + args[0]
+				if len(args) == 2 {
+					path = "/apiv2/review-answer/" + args[0] + "/" + args[1] + "/by-question-id"
+				}
+				var v json.RawMessage
+				if err := c.do("GET", path, nil, &v); err != nil {
+					return err
+				}
+				return emit(&resourceView{raw: rawToAny(v)})
+			})
+		},
+	}
 }
 
 func goalCmd() *cobra.Command {
