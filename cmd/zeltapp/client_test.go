@@ -142,6 +142,39 @@ func TestClient_401TriggersRefreshThenRetry(t *testing.T) {
 	}
 }
 
+// Zelt's real refresh returns 204 No Content with the token in a Set-Cookie
+// header. This must be treated as success (a silent refresh), not fall through
+// to a full password+MFA re-login.
+func TestClient_401TriggersRefresh204NoContent(t *testing.T) {
+	srv, st := newTestServer(t)
+	calls := 0
+	st.route("GET", "/apiv2/auth/me", func(w http.ResponseWriter, r *http.Request, _ []byte) {
+		calls++
+		if calls == 1 {
+			w.WriteHeader(401)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(fixtureAuthMe)
+	})
+	st.route("POST", "/apiv2/auth/refresh", func(w http.ResponseWriter, r *http.Request, _ []byte) {
+		http.SetCookie(w, &http.Cookie{Name: "token", Value: "REFRESHED_204"})
+		w.WriteHeader(204)
+	})
+	c, store := newAuthedTestClient(t, srv)
+
+	var out map[string]any
+	if err := c.do("GET", "/apiv2/auth/me", nil, &out); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 2 {
+		t.Errorf("expected /auth/me hit twice (401 then 200), got %d", calls)
+	}
+	if c.session.Token != "REFRESHED_204" || store.session.Token != "REFRESHED_204" {
+		t.Errorf("204 refresh token not applied: session=%q store=%q", c.session.Token, store.session.Token)
+	}
+}
+
 func TestClient_401AndRefreshFailsButPasswordSucceeds(t *testing.T) {
 	srv, st := newTestServer(t)
 	// First call to /apiv2/data: 401. After re-login: 200.

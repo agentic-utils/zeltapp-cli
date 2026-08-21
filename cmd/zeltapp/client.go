@@ -269,8 +269,9 @@ func (e *apiError) Error() string {
 }
 
 // ExitCode maps to the documented CLI exit-code class.
-//   0=success, 1=generic, 2=usage, 3=auth, 4=not-found, 5=rate-limited,
-//   6=server, 7=network.
+//
+//	0=success, 1=generic, 2=usage, 3=auth, 4=not-found, 5=rate-limited,
+//	6=server, 7=network.
 func (e *apiError) ExitCode() int {
 	switch {
 	case e.Status == 401 || e.Status == 403:
@@ -524,7 +525,11 @@ func (c *client) tryRefresh() error {
 		}
 		body, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
-		if resp.StatusCode != 200 && resp.StatusCode != 201 {
+		// Zelt's refresh returns 204 No Content with the new token in a
+		// Set-Cookie header. Rejecting 204 here made every access-token
+		// expiry (~15 min) fall through to a full password+MFA re-login
+		// instead of a silent refresh.
+		if resp.StatusCode != 200 && resp.StatusCode != 201 && resp.StatusCode != 204 {
 			continue
 		}
 		if token, refresh := c.extractCookies(resp); token != "" {
