@@ -17,14 +17,15 @@ func TestRunMFACommand_ExtractsCode(t *testing.T) {
 }
 
 func TestRunMFACommand_ExportsEnv(t *testing.T) {
-	// The command can see ZELT_MFA_METHOD and ZELT_MFA_SINCE, and emit a code
-	// derived from them (here we just echo the method-tagged code back).
-	code, err := runMFACommand(`printf '%s\n' "0000${ZELT_MFA_SINCE: -2}"; test -n "$ZELT_MFA_METHOD"`, "email")
+	// The command can see ZELT_MFA_METHOD and ZELT_MFA_SINCE (POSIX sh - the
+	// command runs via `sh -c`, which is dash on Linux CI). It only emits the
+	// code when both are set.
+	code, err := runMFACommand(`[ -n "$ZELT_MFA_METHOD" ] && [ -n "$ZELT_MFA_SINCE" ] && echo 654321`, "email")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(code) != 6 {
-		t.Errorf("want 6-digit code, got %q", code)
+	if code != "654321" {
+		t.Errorf("want 654321, got %q", code)
 	}
 }
 
