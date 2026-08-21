@@ -46,6 +46,18 @@ zeltapp auth whoami
 zeltapp auth logout [--forget]       # --forget also wipes the Keychain entry
 ```
 
+Non-interactive login (headless / scripted). Default is unchanged — these two
+flags are opt-in:
+
+```
+your-password-source | \
+  zeltapp auth login -e me@example.com --password-stdin \
+    --mfa-command 'my-fetch-code.sh'
+```
+
+- `--password-stdin` reads the password from the first line of stdin instead of a TTY prompt.
+- `--mfa-command` runs a shell command (via `sh -c`) *after* the code is sent; the first 6-digit run in its stdout is used, so surrounding text is fine. The command is exported `ZELT_MFA_METHOD` and `ZELT_MFA_SINCE` (unix seconds, sampled just before the send) so it can ignore a stale code from a prior attempt.
+
 ### people
 
 ```
